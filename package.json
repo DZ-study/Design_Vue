@@ -1,0 +1,27 @@
+{
+  "name": "design_vue",
+  "version": "1.0.0",
+  "description": "learn the design of vue",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "rollup": "rollup -c rollup.config.js -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DZ-study/Design_Vue.git"
+  },
+  "keywords": [
+    "vue"
+  ],
+  "author": "janice dong",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DZ-study/Design_Vue/issues"
+  },
+  "homepage": "https://github.com/DZ-study/Design_Vue#readme",
+  "devDependencies": {
+    "rollup": "^3.17.3"
+  }
+}
