@@ -6,6 +6,12 @@ export default {
     return {
       tag: 'div',
       text: 'App',
+      data: {
+        obj: {
+          foo: 1,
+          bar: 2
+        }
+      },
       props: {
         onClick: () => {
           alert('Test')
