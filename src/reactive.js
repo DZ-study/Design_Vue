@@ -1,3 +1,9 @@
+/**
+ * 副作用函数 effect:
+ * effect本身不是副作用函数，是注册副作用函数的注册器
+ * 比如监听响应式变化，注册一个
+ */
+
 const stack = new WeakMap()
 let activeEffect
 const effectStack = [] // effect栈
@@ -77,7 +83,7 @@ function trigger(target, key) { // set拦截函数内调用trigger函数触发�
     }
   })
 }
-
+// 读取操作对监听响应式有什么用
 function traverse(value, seen = new Set()) {
   if (typeof value !== 'object' || value === null || seen.has(value)) return
   seen.add(value)
@@ -116,16 +122,44 @@ export function computed(getter) {
 }
 
 // 实现watch函数
-export function watch(source, cb) {
-  effect(
+export function watch(source, cb, options = {}) {
+  let oldVal, newVal
+
+  // cleanup 存储用户注册的过期回调
+  let cleanup
+  // 定义onInvalidate函数
+  function onInvalidate(fn) {
+    cleanup = fn
+  }
+
+  const job = () => {
+    newVal = effectFn()
+    // 在回调之前，先调用过期回调
+    if (cleanup) cleanup()
+    cb(newVal, oldVal, onInvalidate)
+    oldVal = JSON.parse(JSON.stringify(newVal))
+  }
+
+  const effectFn = effect(
     // 递归遍历
     () => traverse(source),
     {
+      lazy: true,
       scheduler() { // 数据变化时，调用传入的回调函数
-        cb(source)
+        if (options.flush === 'post') {
+          const p = Promise.resolve()
+          p.then(job)
+        } else {
+          job()
+        }
       }
     }
   )
+  if (options.immediate) { // 立即触发
+    job()
+  } else {
+    oldVal = effectFn()
+  }
 }
 
 // 对原始数据的代理
@@ -142,60 +176,10 @@ function ProxyObj (data, effect) {
     }
   })
 }
-// const data = { ok: true, text: 'hello world', bar: 'wwww', foo: '3333', num: 1 }
-// const obj = ProxyObj(data)
-/*------------------effect基础测试---------------------*/
-// effect(function effectFn() {
-//   console.log('effect function...', data)
-//   /**
-//    * obj.ok为false时，修改obj.text，依然会触发副作用
-//    * 正常情况不需要再次触发副作用函数
-//    * 优化最开始的effect函数 ↑
-//    */
-//   document.body.innerText = obj.ok ? obj.text : 'not'
-// })
-// setTimeout(() => {
-//   obj.ok = false
-// }, 1000)
-
-// setTimeout(() => {
-//   obj.text = 'ddd'
-// }, 2000)
-
-
-/*------------------effect嵌套测试---------------------*/
-// let temp1, temp2
-// effect(() => {
-//   console.log('effectFn1 执行', obj)
-//   effect(() => {
-//     console.log('effectFn2 执行', obj)
-//     temp2 = obj.bar
-//   })
-//   temp1 = obj.foo
-// })
-
-// setTimeout(() => {
-//   obj.bar = '121212'
-// }, 1000)
-
-// setTimeout(() => {
-//   obj.foo = '3434343'
-// }, 2000)
-
-/*------------------effect调度执行时机测试---------------------*/
-// effect(() => {
-//   console.log(obj.num)
-// }, {
-//   scheduler(fn) {
-//     // setTimeout(fn)
-//     fn()
-//   }
-// })
-// obj.num++
-// obj.num++
-// console.log('end...')
 
 /*------------------effect调度执行次数测试---------------------*/
+const data = { ok: true, text: 'hello world', bar: 'wwww', foo: '3333', num: 1 }
+const obj = ProxyObj(data)
 // // 定义一个任务队列,Set自动去重
 // const jobQueue = new Set()
 // // 创建Promise实例，用这个实例将任务添加到微任务队列
@@ -205,17 +189,24 @@ function ProxyObj (data, effect) {
 // function flushJob() {
 //   if (isFlushing) return
 //   isFlushing = true
+//   console.log(11111)
 //   p.then(() => {
+//     console.log('then')
+//     setTimeout(() => {
+//       console.log('setTimeout3...');
+//     }, 1000)
 //     jobQueue.forEach(job => job())
 //   }).finally(() => {
+//     console.log('finally')
 //     isFlushing = false
 //   })
 // }
 
 // const effectFn = effect(() => {
-//   console.log(obj.num)
+//   console.log('effectFn: ', obj.num)
 // }, {
 //   scheduler(fn) {
+//     console.log('scheduler')
 //     jobQueue.add(fn)
 //     flushJob()
 //   },
@@ -223,40 +214,50 @@ function ProxyObj (data, effect) {
 // })
 
 // effectFn()
+// console.log('num')
 
-// obj.num++
-// obj.num++
-// obj.num++
 
-/*------------------计算属性的实现与测试---------------------*/
-// const data1 = { foo: 1, bar: 2 }
-// const obj1 = ProxyObj(data1)
-// const sumRes = computed(() => {
-  // return {
-  //   get (val) {
-  //     return val
-  //   },
-  //   set () {}
-  // }
-//   console.log('computed: ');
-//   return obj1.foo + obj1.bar
-// })
+let finalData = null
 
-// console.log(sumRes.value)
+watch(obj, async(val, oldVal, onInvalidate) => {
+  let expired = false
+  onInvalidate(() => {
+    expired = true
+  })
 
-/*------------------watch监听相适应变化测试-------------------*/
-const obj = ProxyObj({ foo: 1, boo: 1, baz: { color: 10 }})
-watch(() => obj.foo, (val) => {
-  console.log('监听obj：', val)
-})
+  const res = new Promise(resolve => {
+    return setTimeout(() => {
+      resolve(obj.num * (new Date()).getMilliseconds())
+    }, 1000)
+  })
 
-const timer = setInterval(() => {
-  if (obj.foo > 3) {
-    clearInterval(timer)
-    return
+  const test = await res
+
+  if (!expired) {
+    finalData = test
+    console.log('finalData: ', finalData)
   }
-  obj.foo++
-}, 1000)
+})
+obj.num++
+setTimeout(() => {
+  obj.num++
+}, 200)
+setTimeout(() => {
+  obj.num++
+}, 300)
+setTimeout(() => {
+  obj.num++
+}, 400)
+setTimeout(() => {
+  obj.num++
+}, 5000)
 
+// const timer = setInterval(() => {
+//   if (obj.num > 10) {
+//     clearInterval(timer)
+//     return
+//   }
+//   obj.num+=2
+// }, 1000)
 
 export default ProxyObj

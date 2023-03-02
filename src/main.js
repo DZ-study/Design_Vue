@@ -3,30 +3,35 @@ import ProxyObj from './reactive'
 
 export default class MiniVue {
   constructor (options) {
+    this.options = options
     this.render = options.render
     this.el = options.el || document.body
-    this.VNode = ''
+    this.vnode = ''
     this.components = options.components || {}
     this.init()
   }
   init () {
     if (this.render) {
-      this.VNode = this.render()
-      this.renderHandler(this.VNode, this.el)
+      this.vnode = this.render()
+      this.renderHandler(this.vnode, this.el)
     }
   }
 
-  renderHandler (VNode, parent) { // 渲染器
-    const { tag } = VNode
+  renderHandler (vnode, parent) { // 渲染器
+    // 把data转化为响应式数据挂载到vnode上
+    if (vnode.data) {
+      vnode.$data = ProxyObj(vnode.data)
+    }
+    const { tag } = vnode
     if (typeof tag === 'string') { // 原生Dom
-      this.mountElement(VNode, parent)
-    } else if (typeof tag === 'object') { // vue组件
-      this.mountComponent(VNode, parent)
+      this.mountElement(vnode, parent)
+    } else if (typeof tag === 'object') { // component组件
+      this.mountComponent(vnode, parent)
     }
   }
 
-  mountElement (VNode, parent) {
-    const { tag, text = '', children, classes = '', style = '' } = VNode
+  mountElement (vnode, parent) {
+    const { tag, text = '', children, classes = '', style = '' } = vnode
     const dom = document.createElement(tag)
     text && (dom.innerText = text)
     classes && dom.setAttribute('class', classes)
@@ -36,16 +41,16 @@ export default class MiniVue {
         this.renderHandler(child, dom)
       })
     }
-    for (let key in VNode.props) { // 绑定事件
+    for (let key in vnode.props) { // 绑定事件
       if (/^on/.test(key)) {
         dom.addEventListener(key.substring(2).toLowerCase(),
-        VNode.props[key])
+        vnode.props[key])
       }
     }
     parent.appendChild(dom)
   }
 
-  mountComponent (VNode, parent) {
-    return this.renderHandler(VNode.tag.render(), parent)
+  mountComponent (vnode, parent) {
+    return this.renderHandler(vnode.tag.render(), parent)
   }
 }

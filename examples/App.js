@@ -19,6 +19,7 @@ export default {
       },
       style: 'cursor: pointer; line-height: 30px',
       children: [
+        { tag:'span', text: 'foo' },
         { tag: Hello }
       ]
     }
